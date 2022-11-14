@@ -13,6 +13,7 @@
 Visit [damnvulnerabledefi.xyz](https://damnvulnerabledefi.xyz)
 
 ### Acknowledgement
+*Thanks to [nicolasgarcia214](https://github.com/nicolasgarcia214) who redid the challenge in foundry.*
 *Big thanks to [Tincho](https://twitter.com/tinchoabbate) who created the [first version of this game](https://github.com/tinchoabbate/damn-vulnerable-defi/tree/v2.0.0) and to all the fellows behind the [Foundry Framework](https://github.com/gakonst/foundry/graphs/contributors)*
 
 Damn Vulnerable DeFi is the wargame to learn offensive security of DeFi smart contracts.
@@ -37,7 +38,7 @@ foundryup
 Advanced ways to use `foundryup`, and other documentation, can be found in the [foundryup package](./foundryup/README.md)
 
 2. **Clone This Repo and install dependencies**
-``` 
+```
 git clone https://github.com/nicolasgarcia214/damn-vulnerable-defi-foundry.git
 cd damn-vulnerable-defi-foundry
 forge install
@@ -52,7 +53,7 @@ or
 ```
 ./run.sh [LEVEL_FOLDER_NAME]
 ./run.sh [CHALLENGE_NUMBER]
-./run.sh [4_FIRST_LETTER_OF_NAME] 
+./run.sh [4_FIRST_LETTER_OF_NAME]
 ```
 If the challenge is executed successfully, you've passed!🙌🙌
 
@@ -63,4 +64,4 @@ If the challenge is executed successfully, you've passed!🙌🙌
 
 ### Preinstalled dependencies
 
-`ds-test` for testing, `forge-std` for better cheatcode UX, and `openzeppelin-contracts` for contract implementations. 
+`ds-test` for testing, `forge-std` for better cheatcode UX, and `openzeppelin-contracts` for contract implementations.
